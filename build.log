@@ -1,0 +1,18 @@
+nohup: ignoring input
+mkdir -p build/kernel/core/
+gcc -nostdlib -static -T userspace/hello/linker.ld -o userspace/hello/hello.elf userspace/hello/start.o userspace/hello/hello.o
+gcc -std=gnu17 -O2 -ffreestanding -mno-sse -mno-mmx -fno-builtin -fno-stack-protector -Wall -Wextra -Werror -g -Ikernel -c kernel/core/shell.c -o build/kernel/core/shell.o
+/usr/bin/ld: kernel/core/shell.c: In function ‘handle_command’:
+warning: userspace/hello/start.o: missing .note.GNU-stack section implies executable stack
+/usr/bin/ld: NOTE: This behaviour is deprecated and will be removed in a future version of the linker
+kernel/core/shell.c:145:93: error: operation on ‘j’ may be undefined [-Werror=sequence-point]
+  145 |         size_t j = 0; while (j < sizeof(binpath) - i - 1 && name[j]) binpath[i + j] = name[j++];
+      |                                                                                            ~^~
+kernel/core/shell.c:148:19: error: invalid use of incomplete typedef ‘vfs_node_t’ {aka ‘struct vfs_node’}
+  148 |         if (n && n->type == VFS_FILE) {
+      |                   ^~
+mkdir -p build/kernel/process/
+cc1: all warnings being treated as errors
+make: *** [Makefile:33: build/kernel/core/shell.o] Error 1
+make: *** Waiting for unfinished jobs....
+gcc -std=gnu17 -O2 -ffreestanding -mno-sse -mno-mmx -fno-builtin -fno-stack-protector -Wall -Wextra -Werror -g -Ikernel -c kernel/process/process.c -o build/kernel/process/process.o
