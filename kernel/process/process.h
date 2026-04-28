@@ -3,8 +3,17 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include "memory/vmm.h"
 
 #define PROC_NAME_LEN 32
+#define PROC_MAX_FDS 16
+
+typedef struct process_fd {
+    int used;
+    int fd;
+    uint64_t offset;
+    char path[128];
+} process_fd_t;
 
 typedef enum {
     PROC_RUNNING = 0,
@@ -26,6 +35,9 @@ typedef struct process {
     uint8_t *image_base;
     size_t image_size;
     int exit_code;
+    vmm_address_space_t *address_space;
+    uint64_t cr3;
+    process_fd_t fds[PROC_MAX_FDS];
 } process_t;
 
 /* Create a kernel process that will execute `entry(arg)` when scheduled.

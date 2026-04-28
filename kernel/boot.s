@@ -19,6 +19,14 @@ multiboot_header:
     .long multiboot_header_end - multiboot_header
     .long -(0xE85250D6 + 0 + (multiboot_header_end - multiboot_header))
     .align 8
+    /* Request framebuffer from GRUB (any size/depth acceptable) */
+    .short 5      /* tag type: framebuffer */
+    .short 0      /* flags */
+    .long 20      /* size */
+    .long 0       /* width */
+    .long 0       /* height */
+    .long 32      /* depth preference */
+    .align 8
     .long 0
     .long 8
 multiboot_header_end:
@@ -60,17 +68,66 @@ _start:
     or   $3, %eax               /* P | RW */
     movl %eax, boot_pml4
 
-    /* PDPT[0] → pd */
-    mov  $boot_pd, %eax
+    /* PDPT[0..3] → pd0..pd3 (identity-map 0..4GiB using 2MiB pages) */
+    mov  $boot_pd0, %eax
     or   $3, %eax
-    movl %eax, boot_pdpt
+    movl %eax, boot_pdpt + 0
 
-    /* PD[0..3]: four 2 MB huge pages → identity-map first 8 MB
-       Covers: multiboot header (0x100000), VGA (0xB8000), stack (~0x104000) */
-    movl $0x00000083, boot_pd + 0   /* 0x000000–0x1FFFFF | PS|RW|P */
-    movl $0x00200083, boot_pd + 8   /* 0x200000–0x3FFFFF */
-    movl $0x00400083, boot_pd + 16  /* 0x400000–0x5FFFFF */
-    movl $0x00600083, boot_pd + 24  /* 0x600000–0x7FFFFF */
+    mov  $boot_pd1, %eax
+    or   $3, %eax
+    movl %eax, boot_pdpt + 8
+
+    mov  $boot_pd2, %eax
+    or   $3, %eax
+    movl %eax, boot_pdpt + 16
+
+    mov  $boot_pd3, %eax
+    or   $3, %eax
+    movl %eax, boot_pdpt + 24
+
+    /* Fill each PD with 512x 2MiB entries (1GiB per PD) */
+    xor %ecx, %ecx              /* ecx = entry index (0..511) */
+.fill_pd0:
+    mov %ecx, %eax
+    shl $21, %eax               /* eax = phys base low32 = idx * 2MiB */
+    or  $0x83, %eax             /* PS|RW|P */
+    movl %eax, boot_pd0(,%ecx,8)
+    inc %ecx
+    cmp $512, %ecx
+    jne .fill_pd0
+
+    xor %ecx, %ecx
+.fill_pd1:
+    mov %ecx, %eax
+    shl $21, %eax
+    add $0x40000000, %eax       /* +1GiB */
+    or  $0x83, %eax
+    movl %eax, boot_pd1(,%ecx,8)
+    inc %ecx
+    cmp $512, %ecx
+    jne .fill_pd1
+
+    xor %ecx, %ecx
+.fill_pd2:
+    mov %ecx, %eax
+    shl $21, %eax
+    add $0x80000000, %eax       /* +2GiB */
+    or  $0x83, %eax
+    movl %eax, boot_pd2(,%ecx,8)
+    inc %ecx
+    cmp $512, %ecx
+    jne .fill_pd2
+
+    xor %ecx, %ecx
+.fill_pd3:
+    mov %ecx, %eax
+    shl $21, %eax
+    add $0xC0000000, %eax       /* +3GiB */
+    or  $0x83, %eax
+    movl %eax, boot_pd3(,%ecx,8)
+    inc %ecx
+    cmp $512, %ecx
+    jne .fill_pd3
 
     /* ── 2. Load GDT ─────────────────────────────────────────────── */
     lgdt boot_gdt_ptr
@@ -126,7 +183,10 @@ _start64:
 .align 4096
 boot_pml4:  .skip 4096
 boot_pdpt:  .skip 4096
-boot_pd:    .skip 4096
+boot_pd0:   .skip 4096
+boot_pd1:   .skip 4096
+boot_pd2:   .skip 4096
+boot_pd3:   .skip 4096
 
 .align 16
 stack:      .skip 16384     /* 16 KB */

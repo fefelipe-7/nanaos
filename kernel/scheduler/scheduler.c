@@ -3,6 +3,7 @@
 #include "terminal/vga.h"
 #include "log/logger.h"
 #include "lib/string.h"
+#include "memory/vmm.h"
 #include <stdint.h>
 #include <stddef.h>
 
@@ -113,6 +114,7 @@ void scheduler_yield(void) {
         /* from kernel */
         next->state = PROC_RUNNING;
         current = next;
+        if (current->address_space) vmm_switch_address_space(current->address_space);
         context_switch(&kernel_sp, current->stack_ptr);
     } else {
         process_t *prev = current;
@@ -120,6 +122,7 @@ void scheduler_yield(void) {
         if (!prev_terminated) prev->state = PROC_READY;
         current = next;
         current->state = PROC_RUNNING;
+        if (current->address_space) vmm_switch_address_space(current->address_space);
         context_switch(&prev->stack_ptr, current->stack_ptr);
 
         /* After switching we are running in new context. Terminated processes

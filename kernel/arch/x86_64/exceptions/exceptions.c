@@ -1,6 +1,7 @@
 #include "exceptions.h"
 #include "terminal/vga.h"
 #include "lib/string.h"
+#include "process/process.h"
 #include <stdint.h>
 
 /* ── Human-readable names for vectors 0-21 ───────────────────────────── */
@@ -47,6 +48,23 @@ static void print_hex64(uint64_t val) {
 
 /* ── Main dispatcher, called from interrupt_stubs.S ─────────────────── */
 void exception_dispatch(uint64_t vector, uint64_t error_code) {
+    if (vector == 14) {
+        uint64_t cr2 = 0;
+        __asm__ volatile("mov %%cr2, %0" : "=r"(cr2));
+        process_t *cur = process_get_current();
+        if (cur) {
+            terminal_write_string("page fault in process ");
+            terminal_write_string(cur->name);
+            terminal_write_string("\nprocess killed\nsystem stable\n");
+            process_exit_current_status(-14);
+            return;
+        }
+        terminal_write_string("\n[PF] kernel page fault at ");
+        print_hex64(cr2);
+        terminal_write_string(" err=");
+        print_hex64(error_code);
+        terminal_write_string("\n");
+    }
     /* Red-on-black for the panic banner */
     terminal_set_color(0x04, 0x00);   /* fg=red, bg=black */
     terminal_write_string("\n\n*** KERNEL EXCEPTION ***\n");

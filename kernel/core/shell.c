@@ -4,6 +4,7 @@
 #include "drivers/timer/pit.h"
 #include "lib/string.h"
 #include "fs/vfs.h"
+#include "syscall/syscall.h"
 #include <stddef.h>
 #include <stdint.h>
 #include "process/process.h"
@@ -75,10 +76,19 @@ static void handle_command(const char *cmd) {
     } else if (strcmp(name, "cat") == 0) {
         if (!arg[0]) { terminal_write_string("cat: missing path\n"); }
         else {
-            size_t len = 0;
-            const char *d = vfs_read_file(arg, &len, cwd);
-            if (!d) terminal_write_string("cat: file not found\n");
-            else terminal_write_string(d);
+            int fd = (int)syscall_dispatch(SYS_OPEN, (uint64_t)arg, 0, 0, 0, 0, 0);
+            if (fd < 0) {
+                terminal_write_string("cat: file not found\n");
+            } else {
+                char buf[128];
+                for (;;) {
+                    int n = (int)syscall_dispatch(SYS_READ, (uint64_t)fd, (uint64_t)buf, sizeof(buf) - 1, 0, 0, 0);
+                    if (n <= 0) break;
+                    buf[n] = '\0';
+                    syscall_dispatch(SYS_WRITE, 1, (uint64_t)buf, (uint64_t)n, 0, 0, 0);
+                }
+                syscall_dispatch(SYS_CLOSE, (uint64_t)fd, 0, 0, 0, 0, 0);
+            }
         }
     } else if (strcmp(name, "touch") == 0) {
         if (!arg[0]) terminal_write_string("touch: missing path\n");
@@ -149,10 +159,15 @@ static void handle_command(const char *cmd) {
         /* Try to run a program from /bin/<cmd> */
         char binpath[64];
         size_t i = 0; binpath[i++] = '/'; binpath[i++] = 'b'; binpath[i++] = 'i'; binpath[i++] = 'n'; binpath[i++] = '/';
-        size_t j = 0; while (j < sizeof(binpath) - i - 1 && name[j]) binpath[i + j] = name[j++];
+        size_t j = 0;
+        while (j < sizeof(binpath) - i - 1 && name[j]) {
+            binpath[i + j] = name[j];
+            ++j;
+        }
         binpath[i + j] = '\0';
-        vfs_node_t *n = vfs_resolve(binpath, cwd);
-        if (n && n->type == VFS_FILE) {
+        size_t blen = 0;
+        const char *bdata = vfs_read_file(binpath, &blen, cwd);
+        if (bdata && blen > 0) {
             process_t *p = process_exec(binpath, NULL, 1);
             if (!p) terminal_write_string("exec: failed\n");
             else {

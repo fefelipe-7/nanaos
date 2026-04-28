@@ -3,6 +3,7 @@
 #include "arch/x86_64/pic/pic.h"
 #include "drivers/timer/pit.h"
 #include "drivers/keyboard/keyboard.h"
+#include "drivers/mouse/mouse.h"
 #include "syscall/syscall.h"
 #include <stdint.h>
 
@@ -18,6 +19,9 @@ void isr_common_c(uint64_t vector, uint64_t error_code) {
                 break;
             case 1:
                 keyboard_on_interrupt();
+                break;
+            case 12:
+                mouse_on_interrupt();
                 break;
             default:
                 /* unhandled IRQ — nothing for now */

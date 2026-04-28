@@ -32,3 +32,7 @@ void serial_write_string(const char *str) {
         serial_write_char(*p);
     }
 }
+
+void serial_write(const char *str) {
+    serial_write_string(str);
+}

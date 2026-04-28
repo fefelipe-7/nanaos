@@ -1,5 +1,6 @@
 #include "drivers/timer/pit.h"
 #include "arch/x86_64/port/port.h"
+#include "core/events.h"
 #include <stdint.h>
 
 static volatile uint64_t pit_ticks = 0;
@@ -20,6 +21,14 @@ void pit_init(uint32_t frequency) {
 
 void pit_on_interrupt(void) {
     pit_ticks++;
+    if ((pit_ticks % 10) == 0) {
+        event_t ev;
+        ev.type = EVENT_TIMER;
+        ev.a = (int32_t)pit_ticks;
+        ev.b = 0;
+        ev.c = 0;
+        (void)events_enqueue(ev);
+    }
     /* Notify scheduler (no printing here) */
     extern void scheduler_tick(void);
     scheduler_tick();

@@ -29,6 +29,11 @@
 
 static block_device_t ata_dev;
 
+static int ata_block_read_sector(void *priv, uint64_t lba, void *buf) {
+    (void)priv;
+    return ata_read_sector(lba, buf);
+}
+
 static inline uint16_t inw_port(uint16_t port) {
     uint16_t ret;
     __asm__ volatile ("inw %1, %0" : "=a" (ret) : "dN" (port));
@@ -89,12 +94,7 @@ int ata_init(void) {
     ata_dev.name = "ata0";
     ata_dev.block_size = 512;
     ata_dev.priv = NULL;
-    ata_dev.read_sector = NULL; /* will fill below */
-
-    /* provide read_sector wrapper */
-    extern int ata_read_sector(uint64_t lba, void *buf);
-
-    ata_dev.read_sector = (int (*)(void*,uint64_t,void*)) &ata_read_sector;
+    ata_dev.read_sector = ata_block_read_sector;
     block_register(&ata_dev);
 
     log_info("ATA: primary initialized");
@@ -131,5 +131,16 @@ int ata_read_sector(uint64_t lba, void *buf) {
         w[i] = inw_port(ATA_PRIMARY_BASE + ATA_REG_DATA);
     }
 
+    return 0;
+}
+
+int ata_selftest_sector0(void) {
+    uint8_t buf[512];
+    int rc = ata_read_sector(0, buf);
+    if (rc != 0) {
+        log_error("ATA: sector0 read failed");
+        return rc;
+    }
+    log_info("ATA: sector0 read ok");
     return 0;
 }

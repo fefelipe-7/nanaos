@@ -6,6 +6,7 @@ BUILD_DIR = build
 ISO_DIR = $(BUILD_DIR)/isodir
 KERNEL_ELF = $(BUILD_DIR)/kernel.elf
 ISO_IMAGE = $(BUILD_DIR)/$(OSNAME).iso
+.DEFAULT_GOAL := all
 
 CC = gcc
 LD = ld
@@ -13,13 +14,30 @@ CFLAGS = -std=gnu17 -O2 -ffreestanding -mno-sse -mno-mmx -fno-builtin -fno-stack
 LDFLAGS = -T $(KERNEL_DIR)/linker.ld -nostdlib -static -z max-page-size=0x1000
 
 USERS_DIR = userspace
+RUST_DIR = rust/nanarust
+RUST_LIB = $(BUILD_DIR)/libnanarust.a
+DISK_IMAGE = $(BUILD_DIR)/disk.img
 
 
 KERNEL_SOURCES := $(shell find $(KERNEL_DIR) -name '*.c')
 KERNEL_ASM_SOURCES := $(shell find $(KERNEL_DIR) -name '*.S')
 KERNEL_OBJECTS := $(patsubst %.c,$(BUILD_DIR)/%.o,$(KERNEL_SOURCES)) $(patsubst %.S,$(BUILD_DIR)/%.o,$(KERNEL_ASM_SOURCES))
 
-.PHONY: all clean run
+.PHONY: all clean run disk-image
+$(RUST_LIB):
+	mkdir -p $(BUILD_DIR)
+	@if [ -d "$(RUST_DIR)" ] && command -v cargo >/dev/null 2>&1; then \
+		if cd "$(RUST_DIR)" && cargo build --release --target x86_64-unknown-none; then \
+			cp "$(CURDIR)/$(RUST_DIR)/target/x86_64-unknown-none/release/libnanarust.a" "$(CURDIR)/$(RUST_LIB)"; \
+		else \
+			echo "[WARN] build Rust falhou, usando biblioteca vazia"; \
+			ar rcs "$(CURDIR)/$(RUST_LIB)"; \
+		fi; \
+	else \
+		echo "[WARN] Rust toolchain/dir ausente, usando biblioteca vazia"; \
+		ar rcs "$(CURDIR)/$(RUST_LIB)"; \
+	fi
+
 all: $(ISO_IMAGE)
 
 $(BUILD_DIR):
@@ -57,11 +75,18 @@ $(KERNEL_DIR)/exec/hello_elf.h: $(USERS_DIR)/hello/hello.elf
 	xxd -i $< > $@
 
 # Ensure vfs.c is rebuilt after embedding header is generated
-$(BUILD_DIR)/kernel/fs/vfs.o: $(KERNEL_DIR)/exec/hello_elf.h | $(BUILD_DIR)
-	@true
+$(BUILD_DIR)/kernel/fs/vfs.o: $(KERNEL_DIR)/exec/hello_elf.h $(KERNEL_DIR)/fs/vfs.c | $(BUILD_DIR)
+	mkdir -p $(dir $@)
+	$(CC) $(CFLAGS) -c $(KERNEL_DIR)/fs/vfs.c -o $@
 
-$(KERNEL_ELF): $(BUILD_DIR)/boot.o $(KERNEL_OBJECTS)
-	$(LD) $(LDFLAGS) -o $(KERNEL_ELF) $(BUILD_DIR)/boot.o $(KERNEL_OBJECTS)
+$(KERNEL_ELF): $(BUILD_DIR)/boot.o $(KERNEL_OBJECTS) $(RUST_LIB)
+	$(LD) $(LDFLAGS) -o $(KERNEL_ELF) $(BUILD_DIR)/boot.o $(KERNEL_OBJECTS) $(RUST_LIB)
+$(DISK_IMAGE):
+	mkdir -p $(BUILD_DIR)
+	bash tools/create_fat32_image.sh "$(DISK_IMAGE)"
+
+disk-image: $(DISK_IMAGE)
+
 
 $(ISO_IMAGE): $(KERNEL_ELF) $(ISO_DIR) boot/grub/grub.cfg
 	cp $(KERNEL_ELF) $(ISO_DIR)/boot/kernel.elf
@@ -71,5 +96,5 @@ $(ISO_IMAGE): $(KERNEL_ELF) $(ISO_DIR) boot/grub/grub.cfg
 clean:
 	rm -rf $(BUILD_DIR)
 
-run: $(ISO_IMAGE)
-	qemu-system-x86_64 -cdrom $(ISO_IMAGE) -m 512M -smp 2 -serial stdio
+run: $(ISO_IMAGE) $(DISK_IMAGE)
+	qemu-system-x86_64 -boot order=d -cdrom $(ISO_IMAGE) -drive file=$(DISK_IMAGE),format=raw,if=ide,index=0,media=disk -m 512M -smp 2 -serial stdio

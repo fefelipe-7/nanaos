@@ -2,12 +2,26 @@
 #include "scheduler/scheduler.h"
 #include "exec/loader.h"
 #include "memory/heap.h"
+#include "memory/vmm.h"
 #include "terminal/vga.h"
 #include "lib/string.h"
 #include <stdint.h>
 #include <stddef.h>
 
 static uint32_t next_pid = 1;
+
+static void process_init_fds(process_t *p) {
+    for (int i = 0; i < PROC_MAX_FDS; ++i) {
+        p->fds[i].used = 0;
+        p->fds[i].fd = i;
+        p->fds[i].offset = 0;
+        p->fds[i].path[0] = '\0';
+    }
+    /* stdin/stdout/stderr reservados */
+    p->fds[0].used = 1;
+    p->fds[1].used = 1;
+    p->fds[2].used = 1;
+}
 
 process_t *process_create(const char *name, void (*entry)(void *), void *arg, int priority) {
     if (!entry) return NULL;
@@ -29,6 +43,12 @@ process_t *process_create(const char *name, void (*entry)(void *), void *arg, in
     p->stack_size = stack_size;
     p->priority = priority;
     p->next = NULL;
+    p->image_base = NULL;
+    p->image_size = 0;
+    p->exit_code = 0;
+    p->address_space = vmm_create_address_space();
+    p->cr3 = p->address_space ? p->address_space->cr3 : 0;
+    process_init_fds(p);
 
     /* Prepare initial stack frame: layout for context_switch pop sequence:
      * [0] rax, [1] rbx, [2] rcx, [3] rdx, [4] rsi, [5] rdi,

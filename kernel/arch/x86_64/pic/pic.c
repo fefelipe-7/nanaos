@@ -74,10 +74,13 @@ void pic_init(void) {
     /* Remap PIC to 0x20..0x2F */
     pic_remap(0x20, 0x28);
 
-    /* Mask all IRQs, then enable timer (0) and keyboard (1) */
+    /* Mask all IRQs, then enable timer (0), keyboard (1) and mouse (12).
+     * IMPORTANT: unmask IRQ2 (cascade) so slave IRQs (8-15) can reach master. */
     outb(PIC1_DATA, 0xFF);
     outb(PIC2_DATA, 0xFF);
 
     pic_clear_mask(0); /* timer */
     pic_clear_mask(1); /* keyboard */
+    pic_clear_mask(2); /* cascade */
+    pic_clear_mask(12); /* mouse */
 }

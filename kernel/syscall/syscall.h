@@ -10,6 +10,10 @@
 #define SYS_EXIT       4
 #define SYS_OPEN       5
 #define SYS_CLOSE      6
+#define SYS_LSEEK      7
+#define SYS_GETPID     8
+#define SYS_SLEEP      9
+#define SYS_UPTIME     10
 
 /* Dispatcher: returns uint64_t value in RAX */
 uint64_t syscall_dispatch(uint64_t num,

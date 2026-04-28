@@ -2,6 +2,7 @@
 #include "arch/x86_64/port/port.h"
 #include "terminal/vga.h"
 #include "core/shell.h"
+#include "core/events.h"
 #include <stdint.h>
 
 /* Basic scancode set 1 -> ASCII mapping (non-shifted). */
@@ -36,6 +37,12 @@ void keyboard_on_interrupt(void) {
     if (sc < sizeof(scancode_map)) {
         char c = scancode_map[sc];
         if (c) {
+            event_t ev;
+            ev.type = EVENT_KEYBOARD;
+            ev.a = (int32_t)c;
+            ev.b = 0;
+            ev.c = 0;
+            (void)events_enqueue(ev);
             shell_receive_char(c);
         }
     }

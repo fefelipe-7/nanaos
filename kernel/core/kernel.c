@@ -15,6 +15,13 @@
 #include "drivers/block/block.h"
 #include "fs/mbr.h"
 #include "fs/fat32.h"
+#include "memory/vmm.h"
+#include "drivers/framebuffer/fb.h"
+#include "drivers/mouse/mouse.h"
+#include "core/events.h"
+#include "ui/nanaura/ura.h"
+
+void nanarust_init(void);
 
 void kernel_main(void *multiboot_info) {
     terminal_initialize();
@@ -25,10 +32,13 @@ void kernel_main(void *multiboot_info) {
     log_info("[OK] serial ready");
     log_info("[OK] terminal ready");
     log_info("[OK] nanacore initialized");
+    events_init();
 
     /* Initialize physical memory manager using Multiboot2 info */
     extern void pmm_init(uint64_t multiboot_addr);
     pmm_init((uint64_t)multiboot_info);
+    log_info("[OK] memory ready");
+    vmm_init();
 
     gdt_init();
     log_info("[OK] gdt loaded");
@@ -46,6 +56,13 @@ void kernel_main(void *multiboot_info) {
 
     keyboard_init();
     log_info("[OK] keyboard ready");
+    mouse_init();
+
+    int graphics = (fb_init((uint64_t)multiboot_info) == 0);
+    if (graphics) {
+        fb_clear(0x00102030);
+        fb_draw_string(24, 24, "nanaos graphics initialized", 0x00FFFFFF);
+    }
 
     /* Initialize virtual filesystem and shell */
     vfs_init();
@@ -53,11 +70,13 @@ void kernel_main(void *multiboot_info) {
 
     /* Attempt to initialize ATA and mount first FAT32 partition at /disk */
     if (ata_init() == 0) {
+        log_info("[OK] disk ready");
+        ata_selftest_sector0();
         block_device_t *b = block_get_primary();
         uint64_t part_lba = 0, part_sectors = 0;
         if (mbr_find_fat32_partition(b, &part_lba, &part_sectors) == 0) {
             if (fat32_mount_partition(b, part_lba, "/disk") == 0) {
-                log_info("[OK] /disk mounted");
+                log_info("[OK] fat32 mounted");
             } else {
                 log_warn("FAT32 mount failed");
             }
@@ -68,13 +87,13 @@ void kernel_main(void *multiboot_info) {
         log_warn("ATA init failed");
     }
 
-    /* Shell and enable interrupts */
-    shell_init();
     asm volatile("sti");
 
     /* Scheduler: initialize but do not start automatic preemption yet */
     extern void scheduler_init(void);
     scheduler_init();
+    log_info("[OK] scheduler ready");
+    nanarust_init();
 
     /* Optional: create demo processes (comment out if not desired) */
     /*
@@ -91,15 +110,12 @@ void kernel_main(void *multiboot_info) {
     process_create("proc1", demo_proc1, NULL, 1);
     */
 
-    for (;;) {
-        /* If scheduler requests a reschedule, yield cooperatively. This keeps
-         * the timer IRQ free of heavy work while allowing simple preemption in
-         * the future. */
-        extern int scheduler_needs_reschedule(void);
-        if (scheduler_needs_reschedule()) {
-            extern void scheduler_yield(void);
-            scheduler_yield();
-        }
-        asm volatile("hlt");
+    if (graphics) {
+        nanaura_init(multiboot_info);
+        nanaura_run();
     }
+
+    /* fallback: shell no modo texto */
+    shell_init();
+    for (;;) asm volatile("hlt");
 }

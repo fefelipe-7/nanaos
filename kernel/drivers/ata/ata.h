@@ -9,6 +9,7 @@ int ata_init(void);
 
 /* Read one 512-byte sector into buf */
 int ata_read_sector(uint64_t lba, void *buf);
+int ata_selftest_sector0(void);
 
 /* Get block device for the ATA primary device (NULL if none) */
 block_device_t *ata_get_blockdev(void);
