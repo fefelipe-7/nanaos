@@ -1,5 +1,2 @@
-#include "log/logger.h"
-
-__attribute__((weak)) void nanarust_init(void) {
-    log_info("[OK] nanarust initialized");
-}
+/* Stub removido: Rust deve compilar e prover nanarust_init(). */
+void nanarust_init(void);

@@ -52,28 +52,30 @@ static void handle_command(const char *cmd) {
     size_t alen = 0;
     while (cmd[j] && alen < sizeof(arg) - 1) arg[alen++] = cmd[j++];
 
-    if (strcmp(name, "help") == 0) {
+    extern int nanarust_cmd_eq(const char *a, const char *b);
+
+    if (nanarust_cmd_eq(name, "help")) {
         terminal_write_string("Commands: help clear version about uptime echo ls cat touch mkdir pwd cd meminfo\n");
-    } else if (strcmp(cmd, "clear") == 0) {
+    } else if (nanarust_cmd_eq(cmd, "clear")) {
         terminal_clear();
-    } else if (strcmp(cmd, "version") == 0) {
+    } else if (nanarust_cmd_eq(cmd, "version")) {
         terminal_write_string("nanaos v0.1\n");
-    } else if (strcmp(cmd, "about") == 0) {
+    } else if (nanarust_cmd_eq(cmd, "about")) {
         terminal_write_string("nanaos — simple educational kernel\n");
-    } else if (strcmp(cmd, "uptime") == 0) {
+    } else if (nanarust_cmd_eq(cmd, "uptime")) {
         uint64_t s = uptime_seconds();
         char buf[32];
         itoa(s, buf, 10);
         terminal_write_string("Uptime: ");
         terminal_write_string(buf);
         terminal_write_string(" seconds\n");
-    } else if (strcmp(name, "echo") == 0) {
+    } else if (nanarust_cmd_eq(name, "echo")) {
         terminal_write_string(arg);
         terminal_write_string("\n");
-    } else if (strcmp(name, "ls") == 0) {
+    } else if (nanarust_cmd_eq(name, "ls")) {
         const char *p = arg[0] ? arg : ".";
         if (vfs_list_dir(p, cwd) < 0) terminal_write_string("ls: not a directory\n");
-    } else if (strcmp(name, "cat") == 0) {
+    } else if (nanarust_cmd_eq(name, "cat")) {
         if (!arg[0]) { terminal_write_string("cat: missing path\n"); }
         else {
             int fd = (int)syscall_dispatch(SYS_OPEN, (uint64_t)arg, 0, 0, 0, 0, 0);
@@ -90,20 +92,20 @@ static void handle_command(const char *cmd) {
                 syscall_dispatch(SYS_CLOSE, (uint64_t)fd, 0, 0, 0, 0, 0);
             }
         }
-    } else if (strcmp(name, "touch") == 0) {
+    } else if (nanarust_cmd_eq(name, "touch")) {
         if (!arg[0]) terminal_write_string("touch: missing path\n");
         else {
             if (!vfs_create(arg, 0, cwd)) terminal_write_string("touch: failed\n");
         }
-    } else if (strcmp(name, "mkdir") == 0) {
+    } else if (nanarust_cmd_eq(name, "mkdir")) {
         if (!arg[0]) terminal_write_string("mkdir: missing path\n");
         else {
             if (!vfs_create(arg, 1, cwd)) terminal_write_string("mkdir: failed\n");
         }
-    } else if (strcmp(name, "pwd") == 0) {
+    } else if (nanarust_cmd_eq(name, "pwd")) {
         terminal_write_string(cwd_path);
         terminal_write_string("\n");
-    } else if (strcmp(name, "cd") == 0) {
+    } else if (nanarust_cmd_eq(name, "cd")) {
         if (!arg[0]) { cwd = vfs_get_root(); update_cwd_path(); }
         else {
             vfs_node_t *n = vfs_resolve(arg, cwd);
@@ -121,10 +123,10 @@ static void handle_command(const char *cmd) {
                 }
             }
         }
-    } else if (strcmp(cmd, "meminfo") == 0) {
+    } else if (nanarust_cmd_eq(cmd, "meminfo")) {
         extern void print_meminfo(void);
         print_meminfo();
-    } else if (strcmp(name, "exec") == 0) {
+    } else if (nanarust_cmd_eq(name, "exec")) {
         if (!arg[0]) { terminal_write_string("exec: missing path\n"); }
         else {
             process_t *p = process_exec(arg, NULL, 1);
@@ -145,10 +147,10 @@ static void handle_command(const char *cmd) {
                 }
             }
         }
-    } else if (strcmp(name, "ps") == 0) {
+    } else if (nanarust_cmd_eq(name, "ps")) {
         /* list processes */
         process_list();
-    } else if (strcmp(name, "kill") == 0) {
+    } else if (nanarust_cmd_eq(name, "kill")) {
         if (!arg[0]) { terminal_write_string("kill: missing pid\n"); }
         else {
             uint32_t pid = (uint32_t)atoi(arg);

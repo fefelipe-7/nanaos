@@ -20,6 +20,7 @@
 #include "drivers/mouse/mouse.h"
 #include "core/events.h"
 #include "ui/nanaura/ura.h"
+#include "ui/system/ui.h"
 
 void nanarust_init(void);
 
@@ -61,7 +62,6 @@ void kernel_main(void *multiboot_info) {
     int graphics = (fb_init((uint64_t)multiboot_info) == 0);
     if (graphics) {
         fb_clear(0x00102030);
-        fb_draw_string(24, 24, "nanaos graphics initialized", 0x00FFFFFF);
     }
 
     /* Initialize virtual filesystem and shell */
@@ -111,8 +111,9 @@ void kernel_main(void *multiboot_info) {
     */
 
     if (graphics) {
-        nanaura_init(multiboot_info);
-        nanaura_run();
+        if (ui_system_init(multiboot_info) == 0) {
+            ui_system_run();
+        }
     }
 
     /* fallback: shell no modo texto */

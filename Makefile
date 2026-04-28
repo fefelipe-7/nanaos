@@ -18,24 +18,32 @@ RUST_DIR = rust/nanarust
 RUST_LIB = $(BUILD_DIR)/libnanarust.a
 DISK_IMAGE = $(BUILD_DIR)/disk.img
 
+RUST_REQUIRED ?= 0
 
 KERNEL_SOURCES := $(shell find $(KERNEL_DIR) -name '*.c')
 KERNEL_ASM_SOURCES := $(shell find $(KERNEL_DIR) -name '*.S')
 KERNEL_OBJECTS := $(patsubst %.c,$(BUILD_DIR)/%.o,$(KERNEL_SOURCES)) $(patsubst %.S,$(BUILD_DIR)/%.o,$(KERNEL_ASM_SOURCES))
 
 .PHONY: all clean run disk-image
-$(RUST_LIB):
+
+RUST_SOURCES := $(shell find $(RUST_DIR) -name '*.rs' -o -name 'Cargo.toml' -o -name 'config.toml')
+
+$(RUST_LIB): $(RUST_SOURCES)
 	mkdir -p $(BUILD_DIR)
-	@if [ -d "$(RUST_DIR)" ] && command -v cargo >/dev/null 2>&1; then \
-		if cd "$(RUST_DIR)" && cargo build --release --target x86_64-unknown-none; then \
-			cp "$(CURDIR)/$(RUST_DIR)/target/x86_64-unknown-none/release/libnanarust.a" "$(CURDIR)/$(RUST_LIB)"; \
+	@if [ "$(RUST_REQUIRED)" = "1" ]; then \
+		command -v cargo >/dev/null 2>&1 || (echo "[ERRO] cargo nao encontrado (instale Rust)"; exit 1); \
+		test -d "$(RUST_DIR)" || (echo "[ERRO] diretório Rust ausente: $(RUST_DIR)"; exit 1); \
+		cd "$(RUST_DIR)" && cargo build --release --target x86_64-unknown-none; \
+		cp "$(CURDIR)/$(RUST_DIR)/target/x86_64-unknown-none/release/libnanarust.a" "$(CURDIR)/$(RUST_LIB)"; \
+	else \
+		# UI phase default: allow building without Rust target installed \
+		if command -v cargo >/dev/null 2>&1 && [ -d "$(RUST_DIR)" ]; then \
+			(cd "$(RUST_DIR)" && cargo build --release --target x86_64-unknown-none) && \
+				cp "$(CURDIR)/$(RUST_DIR)/target/x86_64-unknown-none/release/libnanarust.a" "$(CURDIR)/$(RUST_LIB)" || \
+				(ar rcs "$(CURDIR)/$(RUST_LIB)"); \
 		else \
-			echo "[WARN] build Rust falhou, usando biblioteca vazia"; \
 			ar rcs "$(CURDIR)/$(RUST_LIB)"; \
 		fi; \
-	else \
-		echo "[WARN] Rust toolchain/dir ausente, usando biblioteca vazia"; \
-		ar rcs "$(CURDIR)/$(RUST_LIB)"; \
 	fi
 
 all: $(ISO_IMAGE)
